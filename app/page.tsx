@@ -122,15 +122,6 @@ function MarketBadge({ condition }: { condition: ValuationSummary['marketConditi
   );
 }
 
-function AdjSign({ n }: { n: number }) {
-  if (n === 0) return <span className="text-gray-500">$0</span>;
-  return n > 0 ? (
-    <span className="text-emerald-700 font-semibold">+{fc(n)}</span>
-  ) : (
-    <span className="text-red-700 font-semibold">−{fc(Math.abs(n))}</span>
-  );
-}
-
 function AdjustmentDrawer({ comp }: { comp: Comp }) {
   const lines = [
     { label: 'Square Footage', desc: comp.adjustmentBreakdown.sqft },
@@ -190,7 +181,7 @@ export default function Home() {
   function toggleRow(i: number) {
     setExpandedRows((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) { next.delete(i); } else { next.add(i); }
       return next;
     });
   }

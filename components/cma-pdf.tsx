@@ -33,11 +33,8 @@ const BORDER = '#E5E7EB';
 const TEXT_DARK = '#1F2937';
 const TEXT_MED = '#6B7280';
 const GREEN = '#065F46';
-const GREEN_BG = '#D1FAE5';
 const AMBER = '#92400E';
-const AMBER_BG = '#FEF3C7';
 const RED = '#991B1B';
-const RED_BG = '#FEE2E2';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -682,7 +679,7 @@ function MethodologyPage({
           TrueCMA employs a paired sales analysis methodology developed in collaboration with
           licensed Oregon appraisers. Each comparable sale is adjusted to reflect the estimated
           value difference between the comparable property and the subject property. Adjustments
-          are applied to the comparable's close price to produce an adjusted value that accounts
+          are applied to the comparable&apos;s close price to produce an adjusted value that accounts
           for differences in square footage, bedroom count, bathroom count, and property age.
         </Text>
         <Text style={s.bodyText}>
@@ -706,8 +703,8 @@ function MethodologyPage({
         <Text style={[s.sectionTitle, s.mb8]}>Market Conditions</Text>
         <Text style={s.bodyText}>
           Market condition is assessed using the average days on market (DOM) of the selected
-          comparable sales. A Seller's Market is indicated when average DOM is under 30 days.
-          A Balanced Market is indicated at 30–60 days. A Buyer's Market is indicated above 60
+          comparable sales. A Seller&apos;s Market is indicated when average DOM is under 30 days.
+          A Balanced Market is indicated at 30–60 days. A Buyer&apos;s Market is indicated above 60
           days. This metric reflects supply-demand conditions at the time comparables were listed.
         </Text>
 

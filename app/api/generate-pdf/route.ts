@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import React from 'react';
-import { renderToBuffer } from '@react-pdf/renderer';
+import React, { type ReactElement } from 'react';
+import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer';
 import { CMAPdfDocument } from '@/components/cma-pdf';
 import type { SubjectProperty } from '@/components/cma-pdf';
 import type { Comp, ValuationSummary } from '@/app/api/comps/route';
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       valuationSummary,
       agentName: agentName ?? '[Agent Name]',
       reportDate,
-    }) as any
+    }) as ReactElement<DocumentProps>
   );
 
   const addressSlug = (subjectProperty.address || 'cma-report')
