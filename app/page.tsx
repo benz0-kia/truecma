@@ -8,6 +8,7 @@ interface AdjustmentBreakdown {
   bedrooms: string;
   bathrooms: string;
   age: string;
+  condition: string;
   total: string;
 }
 
@@ -19,6 +20,8 @@ interface Comp {
   beds: number;
   baths: number;
   yearBuilt: number;
+  conditionSignal: 'Updated' | 'Original' | 'Mixed' | 'Unknown';
+  conditionAdjustment: number;
   similarityScore: number;
   pricePerSqft: number;
   sqftAdjustment: number;
@@ -28,6 +31,8 @@ interface Comp {
   totalAdjustment: number;
   adjustedPrice: number;
   adjustmentBreakdown: AdjustmentBreakdown;
+  outlier: boolean;
+  outlierNote: string;
 }
 
 interface ValuationSummary {
@@ -122,17 +127,36 @@ function MarketBadge({ condition }: { condition: ValuationSummary['marketConditi
   );
 }
 
+function ConditionBadge({ signal }: { signal: Comp['conditionSignal'] }) {
+  const styles =
+    signal === 'Updated'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : signal === 'Original'
+      ? 'bg-red-50 text-red-700 border-red-200'
+      : 'bg-amber-50 text-amber-700 border-amber-200';
+  const label = signal === 'Updated' ? 'Updated' : signal === 'Original' ? 'Original' : 'Average';
+  return (
+    <span
+      title="Based on listing remarks"
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${styles}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 function AdjustmentDrawer({ comp }: { comp: Comp }) {
   const lines = [
     { label: 'Square Footage', desc: comp.adjustmentBreakdown.sqft },
     { label: 'Bedrooms', desc: comp.adjustmentBreakdown.bedrooms },
     { label: 'Bathrooms', desc: comp.adjustmentBreakdown.bathrooms },
     { label: 'Age / Year Built', desc: comp.adjustmentBreakdown.age },
+    { label: 'Condition', desc: comp.adjustmentBreakdown.condition },
   ];
 
   return (
     <tr>
-      <td colSpan={7} className="bg-[#F0F4FA] px-0 py-0">
+      <td colSpan={8} className="bg-[#F0F4FA] px-0 py-0">
         <div className="px-6 py-4 border-l-4 border-[#1B2B4B]">
           <p className="text-xs font-semibold text-[#1B2B4B] uppercase tracking-wide mb-3">
             Adjustment Breakdown
@@ -150,6 +174,14 @@ function AdjustmentDrawer({ comp }: { comp: Comp }) {
               </div>
             ))}
           </div>
+          {comp.outlier && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+              <svg className="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs text-amber-700 font-medium">{comp.outlierNote}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between bg-[#1B2B4B] rounded-lg px-4 py-2.5 text-white">
             <span className="text-xs font-semibold">{comp.adjustmentBreakdown.total}</span>
             <span className="text-sm font-bold">{fc(comp.adjustedPrice)}</span>
@@ -167,6 +199,7 @@ const defaultForm = {
   baths: '',
   sqft: '',
   yearBuilt: '',
+  condition: 'Average',
 };
 
 export default function Home() {
@@ -177,6 +210,34 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mlsStatus, setMlsStatus] = useState<'idle' | 'loading' | 'found' | 'not-found'>('idle');
+
+  async function handleAddressLookup(address: string) {
+    if (!address.trim()) return;
+    setMlsStatus('loading');
+    try {
+      const res = await fetch('/api/lookup-property', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address }),
+      });
+      const json = await res.json();
+      if (json.found) {
+        setForm((prev) => ({
+          ...prev,
+          beds: json.beds != null ? String(json.beds) : prev.beds,
+          baths: json.baths != null ? String(json.baths) : prev.baths,
+          sqft: json.sqft != null ? String(json.sqft) : prev.sqft,
+          yearBuilt: json.yearBuilt != null ? String(json.yearBuilt) : prev.yearBuilt,
+        }));
+        setMlsStatus('found');
+      } else {
+        setMlsStatus('not-found');
+      }
+    } catch {
+      setMlsStatus('not-found');
+    }
+  }
 
   function toggleRow(i: number) {
     setExpandedRows((prev) => {
@@ -203,6 +264,7 @@ export default function Home() {
           baths: Number(form.baths),
           sqft: Number(form.sqft),
           yearBuilt: Number(form.yearBuilt),
+          condition: form.condition,
         }),
       });
       const json = await res.json();
@@ -298,13 +360,52 @@ export default function Home() {
           <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField label="Property Address" colSpan2>
-                <input
-                  type="text"
-                  placeholder="123 Main St, Portland, OR 97201"
-                  value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className={inputCls}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="123 Main St, Portland, OR 97201"
+                    value={form.address}
+                    onChange={(e) => {
+                      setForm({ ...form, address: e.target.value });
+                      if (mlsStatus !== 'idle') setMlsStatus('idle');
+                    }}
+                    onBlur={(e) => handleAddressLookup(e.target.value)}
+                    className={inputCls}
+                  />
+                  {mlsStatus === 'loading' && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                {mlsStatus === 'loading' && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500">
+                    <svg className="animate-spin h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Looking up property in MLS…
+                  </p>
+                )}
+                {mlsStatus === 'found' && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-600">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Property found in MLS
+                  </p>
+                )}
+                {mlsStatus === 'not-found' && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Property not found — please enter details manually
+                  </p>
+                )}
               </FormField>
               {[
                 { key: 'beds', label: 'Bedrooms', placeholder: '3' },
@@ -324,6 +425,17 @@ export default function Home() {
                   />
                 </FormField>
               ))}
+              <FormField label="Condition" colSpan2>
+                <select
+                  value={form.condition}
+                  onChange={(e) => setForm({ ...form, condition: e.target.value })}
+                  className={`${inputCls} cursor-pointer`}
+                >
+                  {['Fully Remodeled', 'Updated', 'Average', 'Original', 'Poor'].map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </FormField>
             </div>
             <div className="mt-5 flex items-center gap-3">
               <button
@@ -464,6 +576,7 @@ export default function Home() {
                       { label: 'Close Price', left: false },
                       { label: 'Sqft', left: false },
                       { label: '$/Sqft', left: false },
+                      { label: 'Condition', left: false },
                       { label: 'Match', left: false },
                       { label: 'Adj. Price', left: false, navy: true },
                     ].map((col) => (
@@ -491,7 +604,11 @@ export default function Home() {
                           key={`row-${i}`}
                           onClick={() => toggleRow(i)}
                           className={`border-b border-gray-50 cursor-pointer transition-colors ${
-                            expanded ? 'bg-[#F0F4FA]' : 'hover:bg-gray-50'
+                            comp.outlier
+                              ? 'bg-amber-50/60'
+                              : expanded
+                              ? 'bg-[#F0F4FA]'
+                              : 'hover:bg-gray-50'
                           }`}
                         >
                           <td className="px-4 py-3.5 font-medium text-gray-800 max-w-[200px]">
@@ -512,6 +629,9 @@ export default function Home() {
                               : '—'}
                           </td>
                           <td className="px-4 py-3.5 text-right">
+                            <ConditionBadge signal={comp.conditionSignal} />
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
                             <span
                               className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${scoreColor(
                                 comp.similarityScore
@@ -520,8 +640,13 @@ export default function Home() {
                               {pct(comp.similarityScore)}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-right bg-[#1B2B4B]/5 font-bold text-[#1B2B4B] whitespace-nowrap">
-                            {fc(comp.adjustedPrice)}
+                          <td className="px-4 py-3.5 text-right bg-[#1B2B4B]/5 whitespace-nowrap">
+                            <span className={`font-bold ${comp.outlier ? 'text-amber-600' : 'text-[#1B2B4B]'}`}>
+                              {fc(comp.adjustedPrice)}
+                            </span>
+                            {comp.outlier && (
+                              <span className="block text-xs font-normal text-amber-500 mt-0.5">Outlier</span>
+                            )}
                           </td>
                           <td className="px-2 py-3.5 text-right text-gray-400">
                             <svg

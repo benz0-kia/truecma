@@ -375,6 +375,18 @@ function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
+// ─── Condition pill (PDF) ─────────────────────────────────────────────────────
+function ConditionPill({ signal }: { signal: Comp['conditionSignal'] }) {
+  const bg    = signal === 'Updated' ? '#D1FAE5' : signal === 'Original' ? '#FEE2E2' : '#FEF3C7';
+  const color = signal === 'Updated' ? '#065F46' : signal === 'Original' ? '#991B1B' : '#92400E';
+  const label = signal === 'Updated' ? 'Updated' : signal === 'Original' ? 'Original' : 'Average';
+  return (
+    <View style={{ backgroundColor: bg, borderRadius: 3, paddingHorizontal: 4, paddingVertical: 2 }}>
+      <Text style={{ fontSize: 7, color, fontFamily: 'Helvetica-Bold' }}>{label}</Text>
+    </View>
+  );
+}
+
 // ─── Shared sub-components ────────────────────────────────────────────────────
 function PageHeader({ title }: { title: string }) {
   return (
@@ -535,13 +547,14 @@ function ComparableSalesPage({
   reportDate: string;
 }) {
   const cols = [
-    { label: 'Address', flex: 3 },
-    { label: 'Close Date', flex: 1.5 },
-    { label: 'Close Price', flex: 1.5, right: true },
-    { label: 'Sqft', flex: 1, right: true },
-    { label: '$/Sqft', flex: 1, right: true },
-    { label: 'Match', flex: 0.8, right: true },
-    { label: 'Adj. Price', flex: 1.5, right: true },
+    { label: 'Address',    flex: 2.5 },
+    { label: 'Close Date', flex: 1.3 },
+    { label: 'Close Price',flex: 1.3, right: true },
+    { label: 'Sqft',       flex: 1,   right: true },
+    { label: '$/Sqft',     flex: 1,   right: true },
+    { label: 'Condition',  flex: 1 },
+    { label: 'Match',      flex: 0.8, right: true },
+    { label: 'Adj. Price', flex: 1.3, right: true },
   ];
 
   return (
@@ -565,11 +578,9 @@ function ComparableSalesPage({
         {/* Table rows */}
         {comps.map((comp, i) => (
           <View key={i} style={i % 2 === 0 ? s.tableRow : s.tableRowAlt}>
-            <Text style={[s.tdCell, { flex: 3 }]}>
-              {comp.address}
-            </Text>
-            <Text style={[s.tdCell, { flex: 1.5 }]}>{fd(comp.closeDate)}</Text>
-            <Text style={[s.tdCell, { flex: 1.5, textAlign: 'right' }]}>
+            <Text style={[s.tdCell, { flex: 2.5 }]}>{comp.address}</Text>
+            <Text style={[s.tdCell, { flex: 1.3 }]}>{fd(comp.closeDate)}</Text>
+            <Text style={[s.tdCell, { flex: 1.3, textAlign: 'right' }]}>
               {fc(comp.closePrice)}
             </Text>
             <Text style={[s.tdCell, { flex: 1, textAlign: 'right' }]}>
@@ -578,10 +589,14 @@ function ComparableSalesPage({
             <Text style={[s.tdCell, { flex: 1, textAlign: 'right' }]}>
               {comp.pricePerSqft > 0 ? `$${comp.pricePerSqft.toLocaleString()}` : '—'}
             </Text>
+            {/* Condition badge */}
+            <View style={{ flex: 1, padding: '8 6', justifyContent: 'center' }}>
+              <ConditionPill signal={comp.conditionSignal} />
+            </View>
             <Text style={[s.tdCell, { flex: 0.8, textAlign: 'right' }]}>
               {pct(comp.similarityScore)}
             </Text>
-            <Text style={[s.tdCellHighlight, { flex: 1.5, textAlign: 'right' }]}>
+            <Text style={[s.tdCellHighlight, { flex: 1.3, textAlign: 'right' }]}>
               {fc(comp.adjustedPrice)}
             </Text>
           </View>
@@ -628,13 +643,14 @@ function AdjustmentDetailPage({
           Per-Comparable Adjustment Breakdown
         </Text>
         {comps.map((comp, i) => (
-          <View key={i} style={s.compCard}>
+          // wrap={false} keeps each comp block on one page — if it won't fit, it starts on a new page
+          <View key={i} style={s.compCard} wrap={false}>
             <Text style={s.compCardHeader}>
               Comp {i + 1}: {comp.address}
             </Text>
             <Text style={[s.summaryMetaLabel, { marginBottom: 8 }]}>
               Close Price: {fc(comp.closePrice)}  ·  {comp.sqft.toLocaleString()} sqft ·{' '}
-              {comp.beds}bd / {comp.baths}ba · Built {comp.yearBuilt} ·{' '}
+              {comp.beds}bd / {comp.baths}ba · Built {comp.yearBuilt || '—'} ·{' '}
               {pct(comp.similarityScore)} match
             </Text>
 
@@ -643,6 +659,7 @@ function AdjustmentDetailPage({
               ['Bedrooms', comp.adjustmentBreakdown.bedrooms],
               ['Bathrooms', comp.adjustmentBreakdown.bathrooms],
               ['Age / Year Built', comp.adjustmentBreakdown.age],
+              ['Condition', comp.adjustmentBreakdown.condition],
             ].map(([label, desc]) => (
               <View key={label} style={s.adjRow}>
                 <Text style={s.adjLabel}>{desc}</Text>
